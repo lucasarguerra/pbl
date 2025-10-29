@@ -1,5 +1,3 @@
-
-
 `define ENABLE_HPS
 
 module ghrd_top(
@@ -137,7 +135,7 @@ module ghrd_top(
       input       [3:0]  KEY,
 
       ///////// LEDR /////////
-      output      [9:0]  LEDR,
+      output      [3:0]  LEDR,
 
       ///////// PS2 /////////
       inout              PS2_CLK,
@@ -146,7 +144,7 @@ module ghrd_top(
       inout              PS2_DAT2,
 
       ///////// SW /////////
-      input       [9:0]  SW,
+      input       [3:0]  SW,
 
       ///////// TD /////////
       input              TD_CLK27,
@@ -189,11 +187,12 @@ wire [9:0] pio_sw;
 wire [14:0] rom_addr;
 wire [31:0] rom_pixel;
 
+
 control_unity u_control_unity (
     
-	 .vga_reset (~hps_fpga_reset_n),  // ajuste conforme sua política de reset
+	 .vga_reset (hps_fpga_reset_n),  // ajuste conforme sua política de reset
     .clk_50MHz (CLOCK_50),
-    .sw (pio_sw[3:0]),               // usa os 4 LSBs vindos do HPS via PIO    // Conexões VGA para as portas externas do top-level
+    .sw (SW[3:0]),               // usa os 4 LSBs vindos do HPS via PIO    // Conexões VGA para as portas externas do top-level
     .next_x (),                      // se não precisar usar externamente, pode ficar desconectado
     .next_y (),
     .hsyncm (VGA_HS),
@@ -205,7 +204,11 @@ control_unity u_control_unity (
     .sync (VGA_SYNC_N),
     .clks (VGA_CLK),
 	 .rom_addr(rom_addr),
-	 .rom_data(rom_pixel)
+	 .rom_data(rom_pixel),
+	 .led0(LEDR[0]),
+	 .led1(LEDR[1]),
+	 .led2(LEDR[2]),
+  	 .led3(LEDR[3]) // dados vindos da ROM (HPS)
 );
 
 // internal wires and registers declaration
@@ -231,7 +234,7 @@ soc_system u0 (
    .onchip_memory2_1_s2_write             (1'b0),             //                            .write
    .onchip_memory2_1_s2_readdata          (rom_pixel),          //                            .readdata
    .onchip_memory2_1_s2_writedata         (1'b0),          //                            .writedata
-	.pio_led_external_connection_export    (LEDR),    // pio_led_external_connection.export
+	.pio_led_external_connection_export    (),    // pio_led_external_connection.export
     .pio_0_external_connection_export      (pio_sw),       //   pio_0_external_connection.export
     .clk_clk                               ( CLOCK_50           ),      //                            clk.clk
     .reset_reset_n                         ( hps_fpga_reset_n   ),      //                          reset.reset_n
