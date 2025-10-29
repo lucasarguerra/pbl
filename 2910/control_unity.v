@@ -13,17 +13,21 @@ module control_unity (
     output sync,
     output clks,
 	 output [14:0] rom_addr,  // endereço da ROM (vai pro HPS)
-    input  [31:0] rom_data  // dados vindos da ROM (HPS)
+    input  [31:0] rom_data,
+	 output led0,
+	 output led1,
+	 output led2,
+  	 output led3 // dados vindos da ROM (HPS)
 );
 
 	wire outclk_0;
 
-	pll_inst pll_inst (
-	.refclk   (clk_50MHz),   //  refclk.clk
-	.rst      (1'b0),      //   reset.reset
-	.outclk_0 (outclk_0), // outclk0.clk
-	.locked   ()    //  locked.export
-	);
+	//pll_inst pll_inst (
+	//.refclk   (clk_50MHz),   //  refclk.clk
+	//.rst      (1'b0),      //   reset.reset
+	//.outclk_0 (outclk_0), // outclk0.clk
+	//.locked   ()    //  locked.export
+	//);
 
 
     // Clock VGA (25 MHz)
@@ -96,7 +100,7 @@ module control_unity (
 
     ram2port framebuffer
 	(
-        .clock(outclk_0),
+        .clock(clk_50MHz),
         .data(wr_data),
         .rdaddress(addr_reg),
         .wraddress(wr_addr),
@@ -122,7 +126,7 @@ module control_unity (
 	 
 	 
     ULA copier (
-        .clk(clk_vga),
+        .clk(clk_50MHz),
         .reset(vga_reset), // aqui só depende do reset físico
         .seletor(sw_sync),
         .rom_addr(rom_addr),
@@ -152,6 +156,11 @@ module control_unity (
         .green(greenm),
         .blue(bluem)
     );
+	 
+	 assign led0 = wr_en;
+    assign led1 = wr_addr[0];
+	 assign led2 = wr_addr[1];
+	 assign led3 = wr_data[0];
 
 endmodule
 	
