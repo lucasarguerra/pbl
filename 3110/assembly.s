@@ -4,8 +4,10 @@
     .align 2
     .global carregarImagemMIF
     .global mapearPonte
+    .global transferirImagemFPGA
     .type carregarImagemMIF, %function
     .type mapearPonte, %function
+    .type transferirImagemFPGA, %function
 
 carregarImagemMIF:
     @ Argumentos: r0 = path (const char*)
@@ -205,6 +207,41 @@ mapear_error:
     pop     {r4-r7, pc}
 
     .size mapearPonte, .-mapearPonte
+
+@ ============================================================================
+@ Função: transferirImagemFPGA
+@ Argumentos: r0 = tamanho (int)
+@ Retorno: void
+@ ============================================================================
+
+transferirImagemFPGA:
+    push    {r4-r6, lr}         @ Salva registradores
+    
+    mov     r4, r0              @ r4 = tamanho
+    
+    @ memcpy((void *)IMAGE_MEM_ptr, hps_img_buffer, tamanho);
+    @ r0 = destino (IMAGE_MEM_ptr)
+    @ r1 = origem (hps_img_buffer)
+    @ r2 = tamanho
+    
+    @ Carrega IMAGE_MEM_ptr (destino)
+    ldr     r5, =IMAGE_MEM_ptr
+    ldr     r0, [r5]            @ r0 = IMAGE_MEM_ptr (valor do ponteiro)
+    
+    @ Carrega hps_img_buffer (origem)
+    ldr     r5, =hps_img_buffer
+    ldr     r1, [r5]            @ r1 = hps_img_buffer (valor do ponteiro)
+    
+    @ Tamanho
+    mov     r2, r4              @ r2 = tamanho
+    
+    @ Chama memcpy
+    bl      memcpy
+    
+    @ Retorno void (sem valor de retorno)
+    pop     {r4-r6, pc}
+
+    .size transferirImagemFPGA, .-transferirImagemFPGA
 
 @ ============================================================================
 @ Dados (strings e constantes)
