@@ -40,6 +40,7 @@ unsigned char *hps_img_buffer = NULL;
 // Declarações das funções assembly
 extern int carregarImagemMIF(const char *path);
 extern int mapearPonte(void);
+extern void transferirImagemFPGA(int tamanho);
 
 void exibirMenu() {
     printf("\n=== Escolha o Algoritmo de Processamento ===\n");
@@ -55,15 +56,10 @@ int obterCodigoEstado(int opcao) {
     }
 }
 
-void transferirImagemFPGA(int tamanho) {
-    memcpy((void *)IMAGE_MEM_ptr, hps_img_buffer, tamanho);
-}
-
 int testarPIO() {
     unsigned int padroes_teste[] = {0x3FF, 0x000, 0x155, 0x2AA, 0x00F};
     int ok = 0;
-    int n;
-    for (n = 0; n < 5; n++) {
+    for (int n = 0; n < 5; n++) {
         *CONTROL_PIO_ptr = padroes_teste[n];
         asm volatile("" ::: "memory");
         usleep(1000);
