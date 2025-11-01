@@ -43,32 +43,14 @@ void exibirMenu() {
     printf("Selecione uma opção: ");
 }
 
-int testarPIO() {
-    unsigned int padroes_teste[] = {0x3FF, 0x000, 0x155, 0x2AA, 0x00F};
-    int ok = 0;
-    int n;
-    for (n = 0; n < 5; n++) {
-        *CONTROL_PIO_ptr = padroes_teste[n];
-        asm volatile("" ::: "memory");
-        usleep(1000);
-        if (*CONTROL_PIO_ptr == padroes_teste[n]) {
-            ok++;
-        }
-    }
-    
-    return ok;
-}
-
 int main() {
     printf("=== Sistema de Processamento de Imagem HPS-FPGA ===\n");
     
-    // Carrega a imagem MIF usando a função assembly
     int bytes = carregarImagemMIF(IMAGE_PATH);
     if (bytes < 0) {
         perror("Erro ao carregar imagem");
         return 1;
     }
-    printf("Imagem carregada com sucesso (%d bytes)\n", bytes);
     
     // Mapeia a ponte lightweight usando a função assembly
     if (mapearPonte() < 0) {
@@ -76,22 +58,9 @@ int main() {
         limparRecursos();
         return 1;
     }
-    printf("Ponte mapeada com sucesso\n");
     
-    // Transfere a imagem para o FPGA usando a função assembly
     transferirImagemFPGA(bytes);
-    printf("Imagem transferida para o FPGA\n");
     
-    // Testa a comunicação com o PIO
-    int teste = testarPIO();
-    if (teste == 0) {
-        printf("Erro: PIO não respondeu corretamente\n");
-        limparRecursos();
-        return 1;
-    }
-    printf("PIO testado (%d/5 padrões OK)\n", teste);
-    
-    // Loop principal do menu
     int opcao = -1;
     while (opcao != 0) {
         exibirMenu();
@@ -113,12 +82,8 @@ int main() {
         }
         
         // Envia comando usando a função assembly
-        printf("Enviando comando %d...\n", codigo);
         enviarComando(codigo);
         
-        // Aguarda processamento
-        usleep(50000); // 500ms
-        printf("Comando executado\n");
     }
     
     // Limpeza final
