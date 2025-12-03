@@ -51,7 +51,7 @@ static SelecaoRegiao selecao = {0};
 // Configurações do usuário
 static int algoritmo_zoom_in = 0;     // 0=replicação, 1=vizinho
 static int algoritmo_zoom_out = 0;    // 0=decimação, 1=média
-static int nivel_zoom = 0;            // 0=160x120, 1=2x, 2=4x, -1=1/2x, -2=1/4x
+static int nivel_zoom = 2;            // 0=0.25x, 1=0.5x, 2=Cópia Direta, 3=2x, 4=4x
 static int precisa_copia_direta = 0;  // Flag: precisa aplicar cópia direta
 
 volatile int programa_rodando = 1;
@@ -95,24 +95,25 @@ void atualizarCoordenadaImagem() {
 // ============================================================================
 
 void aplicarAlgoritmo(int codigo) {
-    printf("[HARDWARE] Enviando código: 0x%04X\n", codigo);
     enviarComando(codigo);
-    struct timespec ts = {0, 200000000};  // 200ms em nanosegundos
+    struct timespec ts = {0, 200000000};
     nanosleep(&ts, NULL);
-
 }
 
+// ============================================================================
+// FUNÇÕES DE ZOOM CORRIGIDAS PARA A SEQUÊNCIA
+// ============================================================================
+
 void aplicarZoomIn() {
-    printf("\n🔍 ZOOM IN: ");
+    printf("\nZOOM IN (aumenta): ");
     
-    if (nivel_zoom >= 2) {
-        printf("Máximo atingido (4x)\n");
+    if (nivel_zoom >= 4) {
+        printf("Maximo atingido (4x)\n");
         return;
     }
     
     nivel_zoom++;
     
-    // Sai do modo de corte quando muda o zoom
     if (em_modo_corte) {
         em_modo_corte = 0;
         selecao.arrastando = 0;
@@ -120,32 +121,63 @@ void aplicarZoomIn() {
         precisa_copia_direta = 0;
     }
     
-    // Desativa cursor quando não está em 160x120
-    if (nivel_zoom != 0) {
-        modo_selecao = 0;
-        mostrar_cursor = 0;
-    }
-    
     int codigo = -1;
     
-    if (nivel_zoom == 1) {
-        // Zoom 2x
-        if (algoritmo_zoom_in == 0) {
-            printf("Replicação 2x\n");
-            codigo = obterCodigoEstado(2);  // ST_REPLICACAO
-        } else {
-            printf("Zoom NN 2x\n");
-            codigo = obterCodigoEstado(4);  // ST_ZOOMNN
-        }
-    } else if (nivel_zoom == 2) {
-        // Zoom 4x
-        if (algoritmo_zoom_in == 0) {
-            printf("Replicação 4x\n");
-            codigo = obterCodigoEstado(7);  // ST_REPLICACAO4
-        } else {
-            printf("Zoom NN 4x\n");
-            codigo = obterCodigoEstado(9);  // ST_ZOOMNN4
-        }
+    switch(nivel_zoom) {
+        case 0: // 0.25x (1/4)
+            if (algoritmo_zoom_out == 0) {
+                printf("Decimacao 4x\n");
+                codigo = obterCodigoEstado(8);
+            } else {
+                printf("Media 4x\n");
+                codigo = obterCodigoEstado(10);
+            }
+            modo_selecao = 0;
+            mostrar_cursor = 0;
+            break;
+            
+        case 1: // 0.5x (1/2)
+            if (algoritmo_zoom_out == 0) {
+                printf("Decimacao 2x\n");
+                codigo = obterCodigoEstado(3);
+            } else {
+                printf("Media 2x\n");
+                codigo = obterCodigoEstado(5);
+            }
+            modo_selecao = 0;
+            mostrar_cursor = 0;
+            break;
+            
+        case 2: // Cópia Direta (1x)
+            printf("Imagem original\n");
+            codigo = obterCodigoEstado(6);
+            modo_selecao = 1;
+            mostrar_cursor = 1;
+            break;
+            
+        case 3: // 2x
+            if (algoritmo_zoom_in == 0) {
+                printf("Replicacao 2x\n");
+                codigo = obterCodigoEstado(2);
+            } else {
+                printf("Zoom NN 2x\n");
+                codigo = obterCodigoEstado(4);
+            }
+            modo_selecao = 0;
+            mostrar_cursor = 0;
+            break;
+            
+        case 4: // 4x
+            if (algoritmo_zoom_in == 0) {
+                printf("Replicacao 4x\n");
+                codigo = obterCodigoEstado(7);
+            } else {
+                printf("Zoom NN 4x\n");
+                codigo = obterCodigoEstado(9);
+            }
+            modo_selecao = 0;
+            mostrar_cursor = 0;
+            break;
     }
     
     if (codigo >= 0) {
@@ -155,16 +187,15 @@ void aplicarZoomIn() {
 }
 
 void aplicarZoomOut() {
-    printf("\n🔍 ZOOM OUT: ");
+    printf("\nZOOM OUT (reduz): ");
     
-    if (nivel_zoom <= -2) {
-        printf("Mínimo atingido (1/4x)\n");
+    if (nivel_zoom <= 0) {
+        printf("Minimo atingido (0.25x)\n");
         return;
     }
     
     nivel_zoom--;
     
-    // Sai do modo de corte quando muda o zoom
     if (em_modo_corte) {
         em_modo_corte = 0;
         selecao.arrastando = 0;
@@ -172,36 +203,63 @@ void aplicarZoomOut() {
         precisa_copia_direta = 0;
     }
     
-    // Ativa cursor quando volta para 160x120
-    if (nivel_zoom == 0) {
-        modo_selecao = 1;
-        mostrar_cursor = 1;
-        precisa_copia_direta = 1; // Precisa aplicar cópia direta
-    } else {
-        modo_selecao = 0;
-        mostrar_cursor = 0;
-    }
-    
     int codigo = -1;
     
-    if (nivel_zoom == -1) {
-        // Zoom 1/2x
-        if (algoritmo_zoom_out == 0) {
-            printf("Decimação 2x\n");
-            codigo = obterCodigoEstado(3);  // ST_DECIMACAO
-        } else {
-            printf("Média 2x\n");
-            codigo = obterCodigoEstado(5);  // ST_MEDIA
-        }
-    } else if (nivel_zoom == -2) {
-        // Zoom 1/4x
-        if (algoritmo_zoom_out == 0) {
-            printf("Decimação 4x\n");
-            codigo = obterCodigoEstado(8);  // ST_DECIMACAO4
-        } else {
-            printf("Média 4x\n");
-            codigo = obterCodigoEstado(10); // ST_MED4
-        }
+    switch(nivel_zoom) {
+        case 0: // 0.25x (1/4)
+            if (algoritmo_zoom_out == 0) {
+                printf("Decimacao 4x\n");
+                codigo = obterCodigoEstado(8);
+            } else {
+                printf("Media 4x\n");
+                codigo = obterCodigoEstado(10);
+            }
+            modo_selecao = 0;
+            mostrar_cursor = 0;
+            break;
+            
+        case 1: // 0.5x (1/2)
+            if (algoritmo_zoom_out == 0) {
+                printf("Decimacao 2x\n");
+                codigo = obterCodigoEstado(3);
+            } else {
+                printf("Media 2x\n");
+                codigo = obterCodigoEstado(5);
+            }
+            modo_selecao = 0;
+            mostrar_cursor = 0;
+            break;
+            
+        case 2: // Cópia Direta (1x)
+            printf("Copia Direta (160x120)\n");
+            codigo = obterCodigoEstado(6);
+            modo_selecao = 1;
+            mostrar_cursor = 1;
+            break;
+            
+        case 3: // 2x
+            if (algoritmo_zoom_in == 0) {
+                printf("Replicacao 2x\n");
+                codigo = obterCodigoEstado(2);
+            } else {
+                printf("Zoom NN 2x\n");
+                codigo = obterCodigoEstado(4);
+            }
+            modo_selecao = 0;
+            mostrar_cursor = 0;
+            break;
+            
+        case 4: // 4x
+            if (algoritmo_zoom_in == 0) {
+                printf("Replicacao 4x\n");
+                codigo = obterCodigoEstado(7);
+            } else {
+                printf("Zoom NN 4x\n");
+                codigo = obterCodigoEstado(9);
+            }
+            modo_selecao = 0;
+            mostrar_cursor = 0;
+            break;
     }
     
     if (codigo >= 0) {
@@ -211,32 +269,30 @@ void aplicarZoomOut() {
 }
 
 void aplicarCopiaDireta() {
-    printf("\n📸 Aplicando CÓPIA DIRETA (160x120)\n");
-    int codigo = obterCodigoEstado(6); // ST_COPIA_DIRETA
+    printf("\nAplicando COPIA DIRETA (160x120)\n");
+    int codigo = obterCodigoEstado(6);
     if (codigo >= 0) {
         aplicarAlgoritmo(codigo);
         memcpy(imagem_original, fpga_framebuffer, IMG_WIDTH * IMG_HEIGHT);
     }
+    nivel_zoom = 2;
+    modo_selecao = 1;
+    mostrar_cursor = 1;
 }
 
 void resetParaOriginal() {
-    printf("\n🔄 RESET para imagem original\n");
+    printf("\nRESET para imagem original\n");
     
-    // Aplica reset no hardware
-    int codigo = obterCodigoEstado(1); // ST_RESET
+    int codigo = obterCodigoEstado(1);
     if (codigo >= 0) {
         aplicarAlgoritmo(codigo);
     }
     
-    // Restaura buffers
     memcpy(imagem_original, imagem_backup, IMG_WIDTH * IMG_HEIGHT);
     memcpy(fpga_framebuffer, imagem_backup, IMG_WIDTH * IMG_HEIGHT);
     
-    // Aplica cópia direta para exibir
     aplicarCopiaDireta();
     
-    // Reseta variáveis
-    nivel_zoom = 0;
     modo_selecao = 1;
     mostrar_cursor = 1;
     em_modo_corte = 0;
@@ -244,7 +300,7 @@ void resetParaOriginal() {
     selecao.arrastando = 0;
     precisa_copia_direta = 0;
     
-    printf("✅ Imagem original (160x120) restaurada\n");
+    printf("Imagem original (160x120) restaurada\n");
 }
 
 // ============================================================================
@@ -252,8 +308,8 @@ void resetParaOriginal() {
 // ============================================================================
 
 void aplicarCorte() {
-    printf("\n✂️  APLICANDO CORTE\n");
-    printf("Região: (%d,%d) até (%d,%d)\n",
+    printf("\nAPLICANDO CORTE\n");
+    printf("Regiao: (%d,%d) ate (%d,%d)\n",
            selecao.x_inicio, selecao.y_inicio,
            selecao.x_fim, selecao.y_fim);
     
@@ -265,9 +321,8 @@ void aplicarCorte() {
     int largura = x_max - x_min + 1;
     int altura = y_max - y_min + 1;
     
-    printf("Dimensões: %dx%d pixels\n", largura, altura);
+    printf("Dimensoes: %dx%d pixels\n", largura, altura);
     
-    // Corta e centraliza
     memset(imagem_original, 0x00, IMG_WIDTH * IMG_HEIGHT);
     
     int offset_x = (IMG_WIDTH - largura) / 2;
@@ -287,13 +342,11 @@ void aplicarCorte() {
         }
     }
     
-    // Envia para FPGA e exibe com cópia direta
     memcpy(fpga_framebuffer, imagem_original, IMG_WIDTH * IMG_HEIGHT);
     aplicarCopiaDireta();
     
-    printf("✅ Corte aplicado e centralizado\n");
+    printf("Corte aplicado e centralizado\n");
     
-    // Limpa seleção
     selecao.ativa = 0;
     em_modo_corte = 0;
 }
@@ -373,12 +426,11 @@ void* threadAtualizacaoDisplay(void* arg) {
     
     while (programa_rodando) {
         if (!imagem_carregada) {
-            struct timespec ts = {0, 500000000};  // 200ms em nanosegundos
+            struct timespec ts = {0, 50000000};
             nanosleep(&ts, NULL);
             continue;
         }
         
-        // Aplica cópia direta se necessário
         if (precisa_copia_direta) {
             aplicarCopiaDireta();
             precisa_copia_direta = 0;
@@ -388,26 +440,24 @@ void* threadAtualizacaoDisplay(void* arg) {
             atualizarCursorHardware();
             atualizarSelecaoHardware();
             
-            // Mostra coordenadas periodicamente
-            if (contador % 30 == 0 && nivel_zoom == 0) {
+            if (contador % 30 == 0 && nivel_zoom == 2) {
                 pthread_mutex_lock(&cursor.lock);
-                printf("\r🖱️  [%3d, %3d]  ", cursor.x_img, cursor.y_img);
+                printf("\r[%3d, %3d]  ", cursor.x_img, cursor.y_img);
                 if (selecao.arrastando) {
-                    printf("🔄 Arrastando...");
+                    printf("Arrastando...");
                 } else if (selecao.ativa) {
-                    printf("✅ Região pronta");
+                    printf("Regiao pronta");
                 }
                 fflush(stdout);
                 pthread_mutex_unlock(&cursor.lock);
             }
             contador++;
-            struct timespec ts = {0, 160000000};  // 200ms em nanosegundos
+            struct timespec ts = {0, 30000000};
             nanosleep(&ts, NULL);
             
         } else {
-            struct timespec ts = {0, 10000000};  // 200ms em nanosegundos
+            struct timespec ts = {0, 100000000};
             nanosleep(&ts, NULL);
-
         }
     }
     return NULL;
@@ -449,10 +499,9 @@ void* threadLeituraMouseUSB(void* arg) {
             if (errno == EAGAIN || errno == EINTR) {
                struct timespec ts;
                ts.tv_sec = 0;
-               ts.tv_nsec = 1000000;  // 1ms = 1,000,000 ns (equivalente a usleep(1000))
+               ts.tv_nsec = 1000000;
                nanosleep(&ts, NULL);
-
-                continue;
+               continue;
             }
             break;
         }
@@ -473,34 +522,30 @@ void* threadLeituraMouseUSB(void* arg) {
                 atualizarCoordenadaImagem();
             }
             else if (ev.code == REL_WHEEL) {
-                // Scroll do mouse
                 if (ev.value > 0) {
-                    // Scroll UP = Zoom IN
                     pthread_mutex_unlock(&cursor.lock);
+                    printf("\nSCROLL UP: ");
                     aplicarZoomIn();
                     pthread_mutex_lock(&cursor.lock);
                 } else if (ev.value < 0) {
-                    // Scroll DOWN = Zoom OUT
                     pthread_mutex_unlock(&cursor.lock);
+                    printf("\nSCROLL DOWN: ");
                     aplicarZoomOut();
                     pthread_mutex_lock(&cursor.lock);
                 }
             }
         }
         else if (ev.type == EV_KEY) {
-            if (ev.code == BTN_LEFT && nivel_zoom == 0) {
-                // Só processa cliques quando na resolução original
+            if (ev.code == BTN_LEFT && nivel_zoom == 2) {
                 if (ev.value && !btn_left_anterior) {
-                    // Início do arrasto
                     selecao.x_inicio = cursor.x_img;
                     selecao.y_inicio = cursor.y_img;
                     selecao.arrastando = 1;
                     selecao.ativa = 0;
                     em_modo_corte = 1;
-                    printf("\n✂️  Iniciando corte em (%d, %d)\n", cursor.x_img, cursor.y_img);
+                    printf("\nIniciando corte em (%d, %d)\n", cursor.x_img, cursor.y_img);
                 }
                 else if (!ev.value && btn_left_anterior && selecao.arrastando) {
-                    // Fim do arrasto
                     selecao.x_fim = cursor.x_img;
                     selecao.y_fim = cursor.y_img;
                     selecao.arrastando = 0;
@@ -513,11 +558,10 @@ void* threadLeituraMouseUSB(void* arg) {
                 btn_left_anterior = ev.value;
             }
             else if (ev.code == BTN_RIGHT && ev.value && em_modo_corte) {
-                // Botão direito cancela
                 selecao.arrastando = 0;
                 selecao.ativa = 0;
                 em_modo_corte = 0;
-                printf("\n❌ Corte cancelado\n");
+                printf("\nCorte cancelado\n");
             }
         }
         
@@ -535,14 +579,13 @@ void* threadLeituraMouseUSB(void* arg) {
 void configurarAlgoritmos() {
     int opcao;
     
-    printf("════════════════════════════════════════════════\n");
+    printf("================================================\n");
     printf("        ESCOLHA OS ALGORITMOS\n");
-    printf("════════════════════════════════════════════════\n\n");
+    printf("================================================\n\n");
     
-    // Zoom IN
-    printf("Para ZOOM IN (aumentar resolução):\n");
-    printf("1. Replicação (mais rápido, menos qualidade)\n");
-    printf("2. Vizinho Mais Próximo (mais lento, melhor qualidade)\n");
+    printf("Para ZOOM IN\n");
+    printf("1. Replicacao\n");
+    printf("2. Vizinho Mais Próximo\n");
     printf("Escolha (1 ou 2): ");
     
     scanf("%d", &opcao);
@@ -550,18 +593,17 @@ void configurarAlgoritmos() {
     
     if (opcao == 2) {
         algoritmo_zoom_in = 1;
-        printf("✅ Zoom IN: Vizinho Mais Próximo\n");
+        printf("Zoom IN: Vizinho Mais Proximo\n");
     } else {
         algoritmo_zoom_in = 0;
-        printf("✅ Zoom IN: Replicação\n");
+        printf("Zoom IN: Replicacao\n");
     }
     
     printf("\n");
     
-    // Zoom OUT
-    printf("Para ZOOM OUT (reduzir resolução):\n");
-    printf("1. Decimação (mais rápido, menos qualidade)\n");
-    printf("2. Média (mais lento, melhor qualidade)\n");
+    printf("Para ZOOM OUT\n");
+    printf("1. Decimacao\n");
+    printf("2. Media\n");
     printf("Escolha (1 ou 2): ");
     
     scanf("%d", &opcao);
@@ -569,28 +611,11 @@ void configurarAlgoritmos() {
     
     if (opcao == 2) {
         algoritmo_zoom_out = 1;
-        printf("✅ Zoom OUT: Média\n");
+        printf("Zoom OUT: Media\n");
     } else {
         algoritmo_zoom_out = 0;
-        printf("✅ Zoom OUT: Decimação\n");
+        printf("Zoom OUT: Decimacao\n");
     }
-    
-    printf("\n════════════════════════════════════════════════\n");
-    printf("CONFIGURAÇÃO FINAL:\n");
-    printf("• Zoom IN: %s\n", algoritmo_zoom_in ? "Vizinho Mais Próximo" : "Replicação");
-    printf("• Zoom OUT: %s\n", algoritmo_zoom_out ? "Média" : "Decimação");
-    printf("════════════════════════════════════════════════\n\n");
-    
-    printf("INSTRUÇÕES:\n");
-    printf("• Sistema inicia em 160x120 (Cópia Direta)\n");
-    printf("• Scroll UP: Aumenta zoom (usando algoritmo escolhido)\n");
-    printf("• Scroll DOWN: Diminui zoom (usando algoritmo escolhido)\n");
-    printf("• Quando em 160x120: Arraste para cortar região\n");
-    printf("• Corte é aplicado automaticamente ao soltar\n");
-    printf("• Botão direito: Cancela corte\n");
-    printf("• Tecla 1: Reset para imagem original\n");
-    printf("• Tecla 0: Sair\n");
-    printf("════════════════════════════════════════════════\n\n");
     
     printf("Pressione ENTER para iniciar...");
     getchar();
@@ -601,44 +626,37 @@ void configurarAlgoritmos() {
 // ============================================================================
 
 int main() {
-    printf("════════════════════════════════════════════════\n");
-    printf("   SISTEMA DE ZOOM DINÂMICO\n");
-    printf("════════════════════════════════════════════════\n\n");
+    printf("================================================\n");
+    printf("   SISTEMA DE ZOOM DINAMICO\n");
+    printf("================================================\n\n");
     
-    // Usuário escolhe algoritmos
     configurarAlgoritmos();
     
-    // Inicialização do sistema
     IMAGE_MEM_BASE_VAL = ONCHIP_MEMORY2_1_BASE;
     CONTROL_PIO_BASE_VAL = PIO_LED_BASE;
     
-    // Carrega imagem
     int bytes = carregarImagemMIF(IMAGE_PATH);
     if (bytes < 0) {
         perror("Erro ao carregar imagem");
         return 1;
     }
-    printf("✅ Imagem carregada: %d bytes\n", bytes);
+    printf("Imagem carregada: %d bytes\n", bytes);
     
-    // Mapeia memória FPGA
     if (mapearPonte() < 0) {
         perror("Erro ao mapear ponte");
         return 1;
     }
-    printf("✅ Ponte FPGA mapeada\n");
+    printf("Ponte FPGA mapeada\n");
     
-    // Mapeia PIOs do cursor
     if (mapear_pios_cursor() < 0) {
-        printf("⚠️  PIOs do cursor não mapeados\n");
+        printf("PIOs do cursor nao mapeados\n");
     } else {
-        printf("✅ PIOs do cursor mapeados\n");
+        printf("PIOs do cursor mapeados\n");
     }
     
-    // Transfere imagem
     transferirImagemFPGA(bytes);
-    printf("✅ Imagem transferida para FPGA\n\n");
+    printf("Imagem transferida para FPGA\n\n");
     
-    // Inicializa buffers
     fpga_framebuffer = (unsigned char*)IMAGE_MEM_ptr;
     imagem_original = (unsigned char*)malloc(IMG_WIDTH * IMG_HEIGHT);
     imagem_backup = (unsigned char*)malloc(IMG_WIDTH * IMG_HEIGHT);
@@ -654,86 +672,104 @@ int main() {
     memcpy(imagem_backup, fpga_framebuffer, IMG_WIDTH * IMG_HEIGHT);
     imagem_carregada = 1;
     
-    // Inicializa mouse
     char* mouse_path = encontrarMouse();
     if (mouse_path) {
-        printf("✅ Mouse detectado: %s\n", mouse_path);
+        printf("Mouse detectado: %s\n", mouse_path);
         pthread_create(&thread_mouse, NULL, threadLeituraMouseUSB, (void*)mouse_path);
         pthread_create(&thread_desenho, NULL, threadAtualizacaoDisplay, NULL);
         
-        // Ativa cursor
         modo_selecao = 1;
         mostrar_cursor = 1;
     } else {
-        printf("⚠️  Mouse não detectado\n");
+        printf("Mouse nao detectado\n");
     }
     
-    // Mostra imagem inicial (160x120) com Cópia Direta
-    printf("\n════════════════════════════════════════════════\n");
+    printf("\n================================================\n");
     printf("   EXIBINDO IMAGEM ORIGINAL 160x120\n");
-    printf("   (Modo Cópia Direta)\n");
-    printf("════════════════════════════════════════════════\n");
+    printf("   (Modo Copia Direta)\n");
+    printf("================================================\n");
     
     aplicarCopiaDireta();
     
     if (mouse_path) {
         printf("\nCoordenadas do mouse:\n");
+        printf("• Corte disponivel apenas em 160x120 (Copia Direta)\n");
+        printf("• Scroll UP: Aumenta zoom\n");
+        printf("• Scroll DOWN: Diminui zoom\n");
     }
     
-    // Loop principal
     int opcao = -1;
     
     while (opcao != 0) {
-        printf("\n════════════════════════════════════════════════\n");
+        printf("\n================================================\n");
         printf("STATUS: ");
         switch(nivel_zoom) {
-            case -2: printf("40x30 (1/4x)"); break;
-            case -1: printf("80x60 (1/2x)"); break;
-            case 0: printf("160x120 (ORIGINAL - Cópia Direta)"); break;
-            case 1: printf("320x240 (2x)"); break;
-            case 2: printf("640x480 (4x)"); break;
+            case 0: printf("40x30 (0.25x)"); break;
+            case 1: printf("80x60 (0.5x)"); break;
+            case 2: printf("160x120 (ORIGINAL - Copia Direta)"); break;
+            case 3: printf("320x240 (2x)"); break;
+            case 4: printf("640x480 (4x)"); break;
+            default: printf("Desconhecido (%d)", nivel_zoom); break;
         }
         
-        if (nivel_zoom == 0 && mouse_path) {
-            printf(" | ✂️  CORTE DISPONÍVEL");
-            if (selecao.arrastando) printf(" | 🔄 ARRASTANDO");
-            else if (selecao.ativa) printf(" | ✅ REGIÃO PRONTA");
+        if (nivel_zoom == 2 && mouse_path) {
+            printf(" | CORTE DISPONIVEL");
+            if (selecao.arrastando) printf(" | ARRASTANDO");
+            else if (selecao.ativa) printf(" | REGIAO PRONTA");
         }
         
-        printf("\n════════════════════════════════════════════════\n");
-        printf("1 - Reset para imagem original\n");
+        printf("\n================================================\n");
+        printf("COMANDOS:\n");
+        printf("1 - Reset para imagem original completa\n");
         printf("0 - Sair\n");
-        printf("════════════════════════════════════════════════\n");
-        printf("Opção: ");
+        printf("================================================\n");
+        printf("Opcao: ");
         
         if (scanf("%d", &opcao) != 1) {
             while (getchar() != '\n');
+            printf("\nEntrada invalida. Digite 0 ou 1.\n");
             continue;
         }
         while (getchar() != '\n');
         
-        if (opcao == 0) break;
+        if (opcao == 0) {
+            printf("\nEncerrando sistema...\n");
+            break;
+        }
         
         if (opcao == 1) {
             resetParaOriginal();
+        } else {
+            printf("\nOpcao invalida. Digite 0 ou 1.\n");
         }
     }
     
-    // Cleanup
+    printf("\nFinalizando threads...\n");
     programa_rodando = 0;
     
     if (mouse_path) {
         pthread_join(thread_mouse, NULL);
         pthread_join(thread_desenho, NULL);
+        printf("Threads finalizadas\n");
     }
     
-    if (imagem_original) free(imagem_original);
-    if (imagem_backup) free(imagem_backup);
+    if (imagem_original) {
+        free(imagem_original);
+        printf("Buffer imagem_original liberado\n");
+    }
+    
+    if (imagem_backup) {
+        free(imagem_backup);
+        printf("Buffer imagem_backup liberado\n");
+    }
     
     desmapear_pios_cursor();
     pthread_mutex_destroy(&cursor.lock);
     limparRecursos();
     
-    printf("\n✅ Sistema encerrado\n");
+    printf("\n================================================\n");
+    printf("Sistema encerrado com sucesso\n");
+    printf("================================================\n");
+    
     return 0;
 }
